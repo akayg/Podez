@@ -1,0 +1,46 @@
+# To activate a virtual environment in Python, use the following command:
+
+# On Linux or macOS:
+source /path/to/venv/bin/activate
+
+# On Windows (Command Prompt):
+\path\to\venv\Scripts\activate.bat
+
+# On Windows (PowerShell):
+\path\to\venv\Scripts\Activate.ps1
+
+
+
+
+#for this project
+cd /PODEZ
+source venv/bin/activate 
+#as i am in ubuntu and cd to root PODEZ :) 
+
+#vibecoding notes 
+
+
+ Step-by-Step Task 1: Create the Layout
+Try writing this part of the code yourself with these instructions:
+
+In app.py:
+Set a page title and centered layout
+
+Add a main title using st.title()
+
+Add a short description using st.markdown()
+
+Use st.file_uploader() to let the user upload a .jpg, .png, or .jpeg image
+
+If an image is uploaded, display it using st.image()
+
+Add two columns using st.columns(2) for the “Extract” and “Compile” buttons
+
+Use st.button() for each action (functionality can be fake for now)
+
+What is Tesseract?
+Tesseract is an open-source OCR engine that reads text from images. Perfect for our “handwritten code” idea.
+
+
+need to install the google-generativeai library. You can do this using pip:
+
