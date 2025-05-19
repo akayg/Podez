@@ -1,3 +1,19 @@
+Create a virtual environment
+Run this command in the terminal:
+
+bash
+Copy
+Edit
+python3 -m venv venv
+python3 ensures you use Python 3.
+
+-m venv tells Python to create a virtual environment.
+
+venv is the name of the folder where the environment will be created (you can name it anything, but venv or .venv is common).
+
+
+
+
 # To activate a virtual environment in Python, use the following command:
 
 # On Linux or macOS:
