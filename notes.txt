@@ -2,8 +2,6 @@ Create a virtual environment
 Run this command in the terminal:
 
 bash
-Copy
-Edit
 python3 -m venv venv
 python3 ensures you use Python 3.
 
