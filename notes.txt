@@ -58,3 +58,19 @@ Tesseract is an open-source OCR engine that reads text from images. Perfect for 
 
 need to install the google-generativeai library. You can do this using pip:
 
+
+
+Using trOCR with Hugging Face Transformers
+Step 1: Install required packages
+bash
+Copy
+Edit
+pip install transformers datasets pillow
+transformers — for model and tokenizer
+
+datasets — for image processing utils
+
+pillow — for image loading/manipulation
+
+
+
