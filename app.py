@@ -5,6 +5,12 @@ import pytesseract
 import google.generativeai as genai
 import toml
 
+
+
+# Point to the Tesseract executable
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
+
 # Load secrets from the toml file
 try:
     secrets = toml.load("secrets.toml")

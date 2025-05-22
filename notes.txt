@@ -79,7 +79,8 @@ pillow — for image loading/manipulation
 
 #venv code to Run from cloning
 #python3 -m venv venv (create venv )
-source venv/bin/activate (activate venv)
+source venv/bin/activate (activate venv) #Linux
+ .\venv\Scripts\activate #Windows
 
 libs required 
 pip install streamlit
