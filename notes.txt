@@ -15,7 +15,8 @@ venv is the name of the folder where the environment will be created (you can na
 # To activate a virtual environment in Python, use the following command:
 
 # On Linux or macOS:
-source /path/to/venv/bin/activate
+source venv/bin/activate
+
 
 # On Windows (Command Prompt):
 \path\to\venv\Scripts\activate.bat
@@ -74,3 +75,14 @@ pillow — for image loading/manipulation
 
 
 
+
+
+#venv code to Run from cloning
+#python3 -m venv venv (create venv )
+source venv/bin/activate (activate venv)
+
+libs required 
+pip install streamlit
+pip install pytesseract
+pip install Tesseract
+pip install google-generativeai
