@@ -4,66 +4,110 @@ from PIL import Image
 import pytesseract
 import google.generativeai as genai
 import toml
+import io
+import sys
 
-
-
-# Point to the Tesseract executable
+# Configure Tesseract path (update if needed)
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
+def load_gemini_api_key():
+    try:
+        secrets = toml.load("secrets.toml")
+        return secrets.get("GEMINI_API_KEY")
+    except FileNotFoundError:
+        st.error("Error: secrets.toml file not found. Please create this file with your GEMINI_API_KEY.")
+    except toml.TomlDecodeError:
+        st.error("Error: Could not decode secrets.toml. Please check formatting.")
+    return None
 
-# Load secrets from the toml file
-try:
-    secrets = toml.load("secrets.toml")
-    GEMINI_API_KEY = secrets.get("GEMINI_API_KEY")
-except FileNotFoundError:
-    GEMINI_API_KEY = None
-    st.error("Error: secrets.toml file not found. Please create this file in the same directory and add your GEMINI_API_KEY.")
-except toml.TomlDecodeError:
-    GEMINI_API_KEY = None
-    st.error("Error: Could not decode secrets.toml. Please ensure the file is correctly formatted.")
+def execute_python_code(code: str):
+    output = io.StringIO()
+    error = None
+    try:
+        sys.stdout = output
+        exec(code, {})
+    except Exception as e:
+        error = str(e)
+    finally:
+        sys.stdout = sys.__stdout__
+    return output.getvalue(), error
 
-if GEMINI_API_KEY is None:
-    st.stop()
-else:
+def main():
+    st.set_page_config(page_title="Handwritten Code Analyzer with Gemini", layout="centered")
+    st.title("✍️ Handwritten Code Analyzer with Gemini ✨")
+    st.write("Upload an image of handwritten Python code. We'll extract it, refine it with Gemini, then execute it!")
+
+    GEMINI_API_KEY = load_gemini_api_key()
+    if not GEMINI_API_KEY:
+        st.stop()
+
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel(model_name="gemini-2.0-flash")
 
-    st.set_page_config(page_title="Handwritten Code Analyzer with Gemini", layout="centered")
-
-    st.title("✍️ Handwritten Code Analyzer with Gemini ✨")
-    st.write("Upload an image of your handwritten code, we'll extract it using OCR and then refine it with Gemini!")
-
     uploaded_file = st.file_uploader("📤 Choose an image...", type=["jpg", "jpeg", "png"])
+    if not uploaded_file:
+        return
 
-    if uploaded_file is not None:
-        image = Image.open(uploaded_file)
-        st.image(image, caption="Uploaded Image.", use_column_width=True)
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Uploaded Image", use_column_width=True)
 
-        st.write("## Extracted Code (OCR):")
-        try:
-            extracted_text = pytesseract.image_to_string(image)
-            st.code(extracted_text, language="python")
+    try:
+        extracted_text = pytesseract.image_to_string(image).strip()
+    except pytesseract.TesseractNotFoundError:
+        st.error("Tesseract OCR not found. Please install it: https://tesseract-ocr.github.io/tessdoc/Installation.html")
+        return
+    except Exception as e:
+        st.error(f"OCR error: {e}")
+        return
 
-            if extracted_text:
-                with st.spinner("✨ Refining code with Gemini..."):
-                    prompt = f"""Please review and correct the following potentially misrecognized code. Ensure the corrected code is valid and maintains the original intent as much as possible. If there are comments, preserve them. Output only the corrected code.
+    if not extracted_text:
+        st.warning("No text found in the image.")
+        return
 
-                    ```
-                    {extracted_text}
-                    ```
-                    """
-                    response = model.generate_content(prompt)
-                    corrected_code = response.text
+    st.write("## Extracted Code (OCR):")
+    st.code(extracted_text, language="python")
 
-                    st.write("## Refined Code (Gemini):")
-                    st.code(corrected_code, language="python")
+    with st.spinner("✨ Refining code with Gemini..."):
+        prompt = f"""Please review and correct the following potentially misrecognized code. 
+        Ensure the corrected code is valid Python and maintains the original intent as much as possible.
+         Preserve comments. Output only the corrected Python code and just provide code nothing else , as your provided code will be pushed directly to compiler.
 
-        except pytesseract.TesseractNotFoundError:
-            st.error("Tesseract is not installed or not in your PATH. Please install it to use this feature.")
-            st.info("You can find installation instructions here: https://tesseract-ocr.github.io/tessdoc/Installation.html")
-        except Exception as e:
-            st.error(f"An error occurred during OCR: {e}")
+{extracted_text}
+
+"""
+
+        import re
+        response = model.generate_content(prompt)
+        corrected_code = getattr(response, "text", None)
+        if corrected_code is None:
+            # Try to extract from candidates if .text is not present
+            candidates = getattr(response, "candidates", [])
+            if candidates and hasattr(candidates[0], "content") and hasattr(candidates[0].content, "parts"):
+                corrected_code = candidates[0].content.parts[0].text
+            elif candidates and isinstance(candidates[0], dict):
+                corrected_code = candidates[0].get("content", None)
+        if not corrected_code:
+            st.error("Gemini API did not return any corrected code.")
+            return
+        # Extract code block if present
+        code_blocks = re.findall(r"```(?:python)?\s*([\s\S]*?)```", corrected_code)
+        if code_blocks:
+            corrected_code = code_blocks[0].strip()
+        else:
+            corrected_code = corrected_code.strip()
+
+    st.write("## Refined Code (Gemini):")
+    st.code(corrected_code, language="python")
+
+    st.write("## Execution Output:")
+    output, error = execute_python_code(corrected_code)
+    if error:
+        st.error(f"Error during execution:\n{error}")
+    else:
+        st.text(output or "No output.")
 
     st.markdown("---")
-    st.info("💡 **Note:** Gemini's ability to correct the code depends on the complexity and clarity of the initial OCR output.")
-    
+    st.info("💡 Note: Gemini's corrections depend on the clarity of the OCR output and code complexity.")
+
+if __name__ == "__main__":
+    main()
