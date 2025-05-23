@@ -87,3 +87,13 @@ pip install streamlit
 pip install pytesseract
 pip install Tesseract
 pip install google-generativeai
+
+
+
+
+
+
+
+
+#API for OCR  OCR.Space
+https://api.ocr.space/parse/imageurl?apikey=helloworld&url=https://stackify.com/wp-content/uploads/2023/05/image-4.png

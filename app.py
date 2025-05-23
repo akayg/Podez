@@ -49,7 +49,7 @@ def main():
         return
 
     image = Image.open(uploaded_file)
-    st.image(image, caption="Uploaded Image", use_column_width=True)
+    st.image(image, caption="Uploaded Image",  use_container_width=True)
 
     try:
         extracted_text = pytesseract.image_to_string(image).strip()
@@ -68,33 +68,35 @@ def main():
     st.code(extracted_text, language="python")
 
     with st.spinner("✨ Refining code with Gemini..."):
-        prompt = f"""Please review and correct the following potentially misrecognized code. 
-        Ensure the corrected code is valid Python and maintains the original intent as much as possible.
-         Preserve comments. Output only the corrected Python code and just provide code nothing else , as your provided code will be pushed directly to compiler.
+                prompt = f"""
+         Ensure the corrected code is valid Python code and maintains the original intent as much as possible.
+         Preserve comments. Output only the corrected Python code and provide only compilable code without any additional explanation.
+          as your provided code will be pushed directly to the compiler. Exclude comments, 
+          explanations, or anything that is not compilable, and provide neat code only.
 
 {extracted_text}
 
 """
 
-        import re
-        response = model.generate_content(prompt)
-        corrected_code = getattr(response, "text", None)
-        if corrected_code is None:
-            # Try to extract from candidates if .text is not present
-            candidates = getattr(response, "candidates", [])
-            if candidates and hasattr(candidates[0], "content") and hasattr(candidates[0].content, "parts"):
-                corrected_code = candidates[0].content.parts[0].text
-            elif candidates and isinstance(candidates[0], dict):
-                corrected_code = candidates[0].get("content", None)
-        if not corrected_code:
-            st.error("Gemini API did not return any corrected code.")
-            return
-        # Extract code block if present
-        code_blocks = re.findall(r"```(?:python)?\s*([\s\S]*?)```", corrected_code)
-        if code_blocks:
-            corrected_code = code_blocks[0].strip()
-        else:
-            corrected_code = corrected_code.strip()
+                import re
+                response = model.generate_content(prompt)
+                corrected_code = getattr(response, "text", None)
+                if corrected_code is None:
+                    # Try to extract from candidates if .text is not present
+                    candidates = getattr(response, "candidates", [])
+                    if candidates and hasattr(candidates[0], "content") and hasattr(candidates[0].content, "parts"):
+                        corrected_code = candidates[0].content.parts[0].text
+                    elif candidates and isinstance(candidates[0], dict):
+                        corrected_code = candidates[0].get("content", None)
+                if not corrected_code:
+                    st.error("Gemini API did not return any corrected code.")
+                    return
+                # Extract code block if present
+                code_blocks = re.findall(r"```(?:python)?\s*([\s\S]*?)```", corrected_code)
+                if code_blocks:
+                    corrected_code = code_blocks[0].strip()
+                else:
+                    corrected_code = corrected_code.strip()
 
     st.write("## Refined Code (Gemini):")
     st.code(corrected_code, language="python")
