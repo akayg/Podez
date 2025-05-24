@@ -1,44 +1,162 @@
 import streamlit as st
-st.set_page_config(page_title="Handwritten OCR with TrOCR", layout="centered")
-
+import requests
 from PIL import Image
-import numpy as np
-import cv2
-from transformers import TrOCRProcessor, VisionEncoderDecoderModel
-import torch
+import io
+import google.generativeai as genai
+import toml
+import sys
+import re
 
-# Load model only once
-@st.cache_resource
-def load_model():
-    processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-handwritten")
-    model = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-base-handwritten")
-    return processor, model
+# Load Gemini API key from secrets.toml
+def load_gemini_api_key():
+    try:
+        secrets = toml.load("secrets.toml")
+        return secrets.get("GEMINI_API_KEY")
+    except Exception as e:
+        st.error(f"Error loading Gemini API key: {e}")
+        return None
 
-processor, model = load_model()
-def preprocess_image(image: Image.Image):
-    img = np.array(image.convert("L"))  # Grayscale
-    img = cv2.resize(img, (800, 800), interpolation=cv2.INTER_LINEAR)
-    _, img = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    return Image.fromarray(img).convert("RGB")  # 🔥 Convert back to RGB
+# Execute Python code and capture output
+def execute_python_code(code: str, user_inputs: list):
+    output = io.StringIO()
+    error = None
+    try:
+        sys.stdout = output
+        input_iter = iter(user_inputs)
 
+        def patched_input(prompt=""):
+            st.write(f"Prompt: {prompt}")
+            return next(input_iter)
 
-st.title("📝 Handwritten OCR with TrOCR")
-st.write("Upload a handwritten image — we'll clean it up and read it using TrOCR.")
+        builtins_backup = __import__("builtins")
+        original_input = builtins_backup.input
+        builtins_backup.input = patched_input
 
-uploaded_file = st.file_uploader("📤 Upload Handwritten Code Image", type=["jpg", "jpeg", "png"])
+        exec(code, {"__builtins__": builtins_backup.__dict__})
+        builtins_backup.input = original_input
+    except Exception as e:
+        error = str(e)
+    finally:
+        sys.stdout = sys.__stdout__
+    return output.getvalue(), error
 
-if uploaded_file:
-    image = Image.open(uploaded_file)
-    st.image(image, caption="Original Image", use_column_width=True)
+# Extract all input() prompts from code
+def extract_input_prompts(code):
+    if not code:
+        return []
+    return re.findall(r'input\((.*?)\)', code)
 
-    with st.spinner("🧼 Preprocessing image..."):
-        clean_image = preprocess_image(image)
-        st.image(clean_image, caption="Preprocessed Image", use_column_width=True)
+# OCR.space
+def extract_text_from_image(image_bytes):
+    url = "https://api.ocr.space/parse/image"
+    payload = {
+        'apikey': 'helloworld',
+        'language': 'eng',
+        'isOverlayRequired': False
+    }
+    files = {
+        'file': ('image.png', image_bytes, 'image/png')
+    }
+    try:
+        response = requests.post(url, data=payload, files=files)
+        result = response.json()
+    except Exception:
+        st.warning("⚠️ OCR.space API failed or exceeded limit.")
+        return ""
 
-    with st.spinner("🤖 Reading handwriting with TrOCR..."):
-        pixel_values = processor(images=clean_image, return_tensors="pt").pixel_values
-        generated_ids = model.generate(pixel_values)
-        extracted_text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    if result.get("IsErroredOnProcessing") or not result.get("ParsedResults"):
+        st.warning("⚠️ OCR did not return enough valid code to process.")
+        return ""
 
-        st.success("✅ Handwriting Extracted!")
-        st.code(extracted_text, language="python")
+    return result["ParsedResults"][0].get("ParsedText", "").strip()
+
+# Streamlit main app
+def main():
+    st.set_page_config(page_title="Handwritten Code Analyzer", layout="centered")
+    st.title("✍️ Handwritten Code Analyzer with Gemini")
+
+    GEMINI_API_KEY = load_gemini_api_key()
+    if not GEMINI_API_KEY:
+        st.stop()
+
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel(model_name="gemini-2.0-flash")
+
+    if "refined_code" not in st.session_state:
+        st.session_state.refined_code = None
+    if "user_code" not in st.session_state:
+        st.session_state.user_code = None
+    if "last_uploaded_filename" not in st.session_state:
+        st.session_state.last_uploaded_filename = None
+
+    uploaded_file = st.file_uploader("📤 Upload a code image", type=["jpg", "jpeg", "png"])
+    if uploaded_file:
+        # Only process new uploads
+        if uploaded_file.name != st.session_state.last_uploaded_filename:
+            st.session_state.last_uploaded_filename = uploaded_file.name
+            st.image(uploaded_file, caption="Uploaded Image", use_container_width=True)
+            image_bytes = uploaded_file.read()
+            extracted_text = extract_text_from_image(image_bytes)
+
+            if not extracted_text:
+                st.stop()
+
+            st.write("### 🧾 OCR Extracted Code:")
+            st.code(extracted_text, language="python")
+
+            if extracted_text.strip():
+                with st.spinner("Refining code with Gemini..."):
+                    prompt = f"""
+                    Refine this Python code. Only correct syntax and structure errors.
+                    DO NOT explain anything. DO NOT change logic or language. Just return valid Python code:
+                    {extracted_text}
+                    """
+                    response = model.generate_content(prompt)
+                    corrected_code = response.text or ""
+
+                    code_blocks = re.findall(r"```(?:python)?\s*([\s\S]*?)```", corrected_code)
+                    if code_blocks:
+                        corrected_code = code_blocks[0].strip()
+
+                    st.session_state.refined_code = corrected_code.strip()
+                    st.session_state.user_code = corrected_code.strip()
+            else:
+                st.warning("OCR result is empty.")
+        else:
+            st.image(uploaded_file, caption="Uploaded Image", use_container_width=True)
+
+    if st.session_state.refined_code:
+        st.write("### ✅ Refined Code:")
+        # Use user_code for editing, only update it when user edits
+        editable_code = st.text_area(
+            "✏️ Editable Python Code:",
+            st.session_state.user_code or st.session_state.refined_code,
+            height=300,
+            key="editable_code"
+        )
+        if editable_code != st.session_state.user_code:
+            st.session_state.user_code = editable_code  # Only update if user changed it
+
+        input_prompts = extract_input_prompts(st.session_state.user_code)
+        user_inputs = []
+
+        if input_prompts:
+            st.warning("⚠️ Code has input() statements. Provide values below.")
+            for idx, prompt in enumerate(input_prompts):
+                safe_prompt = prompt.strip("'\"")
+                value = st.text_input(f"Input {idx + 1} - {safe_prompt}", key=f"input_{idx}")
+                user_inputs.append(value)
+
+        if st.button("🚀 Run Code"):
+            if st.session_state.user_code:
+                output, error = execute_python_code(st.session_state.user_code, user_inputs)
+                st.write("### 🖥️ Output:")
+                if error:
+                    st.error(f"Error: {error}")
+                else:
+                    st.code(output or "No output.")
+            else:
+                st.warning("No code to execute.")
+
+if __name__ == "__main__":
+    main()
