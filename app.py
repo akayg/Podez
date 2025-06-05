@@ -8,7 +8,7 @@ import io
 import sys
 
 # Configure Tesseract path (update if needed)
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 def load_gemini_api_key():
     try:
