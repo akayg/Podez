@@ -38,7 +38,7 @@ def main():
     st.write("Upload an image of handwritten Python code. We'll extract it, refine it with Gemini, then execute it!")
 
     GEMINI_API_KEY = load_gemini_api_key()
-    .
+
     if not GEMINI_API_KEY:
         st.stop()
 
