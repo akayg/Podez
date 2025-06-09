@@ -127,4 +127,3 @@ For questions or support, please contact [email@abhishekgore.com](mailto:email@a
 ---
 
 *Podez — AI meets code, from paper to execution.*
-```
