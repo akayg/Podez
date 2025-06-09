@@ -1,4 +1,3 @@
-```markdown
 # Podez
 
 Podez is an advanced AI-powered platform designed to bridge the gap between handwritten code and executable, refined Python programs. Leveraging state-of-the-art OCR (Optical Character Recognition) and generative AI models, Podez enables users to upload images of handwritten or printed Python code, extract and correct the code, and execute it—all within a secure, interactive web interface.
